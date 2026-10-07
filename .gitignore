@@ -2,4 +2,20 @@
 __pycache__/
 .DS_Store
 
-data/
+data/*
+!data/train/
+!data/val/
+data/train/*
+!data/train/real/
+!data/train/fake/
+data/val/*
+!data/val/real/
+!data/val/fake/
+data/train/real/*
+!data/train/real/.gitkeep
+data/train/fake/*
+!data/train/fake/.gitkeep
+data/val/real/*
+!data/val/real/.gitkeep
+data/val/fake/*
+!data/val/fake/.gitkeep
