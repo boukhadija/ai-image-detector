@@ -1,16 +1,21 @@
 .venv/
 __pycache__/
 .DS_Store
+checkpoints/
 
 data/*
 !data/train/
 !data/val/
+!data/test/
 data/train/*
 !data/train/real/
 !data/train/fake/
 data/val/*
 !data/val/real/
 !data/val/fake/
+data/test/*
+!data/test/real/
+!data/test/fake/
 data/train/real/*
 !data/train/real/.gitkeep
 data/train/fake/*
@@ -19,3 +24,7 @@ data/val/real/*
 !data/val/real/.gitkeep
 data/val/fake/*
 !data/val/fake/.gitkeep
+data/test/real/*
+!data/test/real/.gitkeep
+data/test/fake/*
+!data/test/fake/.gitkeep

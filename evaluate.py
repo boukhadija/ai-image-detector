@@ -1,3 +1,61 @@
-"""Evaluation entry point for accuracy, F1, and ROC-AUC metrics."""
+"""Evaluate a trained CIFAKE baseline on the held-out test split."""
 
-# TODO: Load a trained model and compute metrics on the validation data.
+from __future__ import annotations
+
+import argparse
+from pathlib import Path
+
+import torch
+from sklearn.metrics import accuracy_score, f1_score, roc_auc_score
+
+from models.detector import BaselineCNN
+from src.dataset import create_dataloaders
+from train import choose_device
+
+
+def main() -> None:
+	parser = argparse.ArgumentParser(description="Evaluate a CIFAKE CNN on the test split")
+	parser.add_argument("--data-dir", type=Path, default=Path("data"))
+	parser.add_argument("--checkpoint", type=Path, default=Path("checkpoints/baseline_cnn.pt"))
+	parser.add_argument("--batch-size", type=int, default=128)
+	parser.add_argument("--num-workers", type=int, default=0)
+	parser.add_argument("--device", choices=("auto", "cpu", "cuda", "mps"), default="auto")
+	args = parser.parse_args()
+	if not args.checkpoint.is_file():
+		parser.error(f"Checkpoint does not exist: {args.checkpoint}")
+
+	device = choose_device(args.device)
+	loaders, class_to_idx = create_dataloaders(
+		args.data_dir, args.batch_size, args.num_workers
+	)
+	checkpoint = torch.load(args.checkpoint, map_location=device, weights_only=True)
+	if checkpoint["class_to_idx"] != class_to_idx:
+		raise ValueError("Checkpoint class mapping does not match the dataset class mapping")
+
+	model = BaselineCNN(num_classes=len(class_to_idx)).to(device)
+	model.load_state_dict(checkpoint["model_state_dict"])
+	model.eval()
+	all_labels = []
+	all_predictions = []
+	all_real_scores = []
+	with torch.inference_mode():
+		for images, labels in loaders["test"]:
+			logits = model(images.to(device))
+			all_labels.extend(labels.tolist())
+			all_predictions.extend(logits.argmax(dim=1).cpu().tolist())
+			all_real_scores.extend(torch.softmax(logits, dim=1)[:, class_to_idx["real"]].cpu().tolist())
+
+	if not all_labels:
+		raise ValueError("The test split is empty")
+	metrics = {
+		"accuracy": accuracy_score(all_labels, all_predictions),
+		"f1": f1_score(all_labels, all_predictions, pos_label=class_to_idx["real"]),
+		"auc_roc": roc_auc_score(all_labels, all_real_scores),
+	}
+	print(f"Test images: {len(all_labels)}; checkpoint epoch: {checkpoint['epoch']}")
+	for metric_name, metric_value in metrics.items():
+		print(f"{metric_name}: {metric_value:.4f}")
+
+
+if __name__ == "__main__":
+	main()
