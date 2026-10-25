@@ -6,7 +6,7 @@ import argparse
 from pathlib import Path
 
 import torch
-from sklearn.metrics import accuracy_score, f1_score, roc_auc_score
+from sklearn.metrics import accuracy_score, f1_score, roc_auc_score, precision_score, recall_score, confusion_matrix
 
 from models.detector import BaselineCNN
 from src.dataset import create_dataloaders
@@ -37,24 +37,39 @@ def main() -> None:
 	model.eval()
 	all_labels = []
 	all_predictions = []
-	all_real_scores = []
+	all_fake_scores = []
 	with torch.inference_mode():
 		for images, labels in loaders["test"]:
 			logits = model(images.to(device))
 			all_labels.extend(labels.tolist())
 			all_predictions.extend(logits.argmax(dim=1).cpu().tolist())
-			all_real_scores.extend(torch.softmax(logits, dim=1)[:, class_to_idx["real"]].cpu().tolist())
+			all_fake_scores.extend(torch.softmax(logits, dim=1)[:, class_to_idx["fake"]].cpu().tolist())
 
 	if not all_labels:
 		raise ValueError("The test split is empty")
+	fake_labels = [
+    1 if label == class_to_idx["fake"] else 0
+    for label in all_labels
+	]
+	
+	confusion_matrix_cm=confusion_matrix(all_labels, all_predictions, labels=[class_to_idx["fake"], class_to_idx["real"]])
+	tp, fn = confusion_matrix_cm[0]
+	fp, tn = confusion_matrix_cm[1]
 	metrics = {
-		"accuracy": accuracy_score(all_labels, all_predictions),
-		"f1": f1_score(all_labels, all_predictions, pos_label=class_to_idx["real"]),
-		"auc_roc": roc_auc_score(all_labels, all_real_scores),
-	}
+			"accuracy": accuracy_score(all_labels, all_predictions),
+			"f1": f1_score(all_labels, all_predictions, pos_label=class_to_idx["fake"]),
+			"auc_roc": roc_auc_score(fake_labels, all_fake_scores),
+			"precision": precision_score( all_labels, all_predictions, pos_label=class_to_idx["fake"]),
+			"recall": recall_score(all_labels, all_predictions, pos_label=class_to_idx["fake"]),
+		
+			}
 	print(f"Test images: {len(all_labels)}; checkpoint epoch: {checkpoint['epoch']}")
 	for metric_name, metric_value in metrics.items():
 		print(f"{metric_name}: {metric_value:.4f}")
+	print(f"TP: {tp}")
+	print(f"FN: {fn}")
+	print(f"FP: {fp}")
+	print(f"TN: {tn}")
 
 
 if __name__ == "__main__":
