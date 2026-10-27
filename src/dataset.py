@@ -123,19 +123,26 @@ def create_dataloaders(
     batch_size: int = 128,
     num_workers: int = 0,
     seed: int = 42,
+    image_size: int = 32,
+    imagenet_normalization: bool = False,
 ):
-    """Create train, validation, and test loaders for 32x32 CIFAKE images."""
+    """Create train, validation, and test CIFAKE loaders."""
     import torch
     from torch.utils.data import DataLoader
     from torchvision import datasets, transforms
 
     data_dir = Path(data_dir)
-    normalize = transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))
+    if imagenet_normalization:
+        normalize = transforms.Normalize(
+            mean=(0.485, 0.456, 0.406), std=(0.229, 0.224, 0.225)
+        )
+    else:
+        normalize = transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))
     train_transform = transforms.Compose(
-        [transforms.Resize((32, 32)), transforms.RandomHorizontalFlip(), transforms.ToTensor(), normalize]
+        [transforms.Resize((image_size, image_size)), transforms.RandomHorizontalFlip(), transforms.ToTensor(), normalize]
     )
     evaluation_transform = transforms.Compose(
-        [transforms.Resize((32, 32)), transforms.ToTensor(), normalize]
+        [transforms.Resize((image_size, image_size)), transforms.ToTensor(), normalize]
     )
 
     datasets_by_split = {

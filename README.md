@@ -32,16 +32,30 @@ The resulting folders are `data/{train,val,test}/{fake,real}`. Labels are `fake=
 
 ## Train and evaluate
 
-Train the baseline CNN. The best validation-accuracy checkpoint is saved under the ignored `checkpoints/` directory:
+Train the tuned baseline. The options below control learning rate, weight decay, dropout, and early stopping; the best validation checkpoint is saved under the ignored `checkpoints/` directory:
 
 ```bash
-python train.py --epochs 10 --batch-size 128 --device auto
+python train.py --model baseline --epochs 15 --batch-size 128 --learning-rate 1e-3 --weight-decay 1e-4 --dropout 0.3 --patience 3 --checkpoint checkpoints/tuned_baseline.pt
 ```
 
-Evaluate the saved checkpoint once on the held-out test split:
+Try ImageNet-pretrained ResNet-18 with two stages. Start with its backbone frozen:
 
 ```bash
-python evaluate.py --checkpoint checkpoints/baseline_cnn.pt --device auto
+python train.py --model resnet18 --freeze-backbone --epochs 8 --batch-size 64 --learning-rate 1e-3 --weight-decay 1e-4 --patience 3 --checkpoint checkpoints/resnet18_frozen.pt
 ```
 
-The model resizes images to 32×32, uses horizontal flips for training augmentation, and reports test accuracy, F1, and ROC-AUC. `--device auto` selects CUDA, Apple MPS, or CPU when available.
+If frozen-backbone validation improves, run a lower learning-rate fine-tuning experiment:
+
+```bash
+python train.py --model resnet18 --epochs 12 --batch-size 64 --learning-rate 1e-5 --weight-decay 1e-4 --patience 3 --checkpoint checkpoints/resnet18_finetuned.pt
+```
+
+Evaluate each checkpoint once on the held-out test split and run single-image inference:
+
+```bash
+python evaluate.py --checkpoint checkpoints/tuned_baseline.pt --device auto
+python evaluate.py --checkpoint checkpoints/resnet18_finetuned.pt --device auto
+python predict.py path/to/image.jpg --checkpoint checkpoints/resnet18_finetuned.pt --device auto
+```
+
+The baseline uses 32×32 images; ResNet-18 uses 224×224 images with ImageNet normalization. `--device auto` selects CUDA, Apple MPS, or CPU when available. For a valid comparison, keep split seed, epochs, data augmentation, and test data unchanged and report validation/test accuracy, F1, and ROC-AUC for each model.

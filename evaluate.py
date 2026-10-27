@@ -8,7 +8,7 @@ from pathlib import Path
 import torch
 from sklearn.metrics import accuracy_score, f1_score, roc_auc_score, precision_score, recall_score, confusion_matrix
 
-from models.detector import BaselineCNN
+from models.detector import create_model
 from src.dataset import create_dataloaders
 from train import choose_device
 
@@ -25,14 +25,21 @@ def main() -> None:
 		parser.error(f"Checkpoint does not exist: {args.checkpoint}")
 
 	device = choose_device(args.device)
-	loaders, class_to_idx = create_dataloaders(
-		args.data_dir, args.batch_size, args.num_workers
-	)
 	checkpoint = torch.load(args.checkpoint, map_location=device, weights_only=True)
+	model_name = checkpoint.get("model_name", "baseline")
+	image_size = checkpoint.get("image_size", 32)
+	imagenet_normalization = checkpoint.get("imagenet_normalization", model_name == "resnet18")
+	loaders, class_to_idx = create_dataloaders(
+		args.data_dir,
+		args.batch_size,
+		args.num_workers,
+		image_size=image_size,
+		imagenet_normalization=imagenet_normalization,
+	)
 	if checkpoint["class_to_idx"] != class_to_idx:
 		raise ValueError("Checkpoint class mapping does not match the dataset class mapping")
 
-	model = BaselineCNN(num_classes=len(class_to_idx)).to(device)
+	model = create_model(model_name, num_classes=len(class_to_idx), pretrained=False).to(device)
 	model.load_state_dict(checkpoint["model_state_dict"])
 	model.eval()
 	all_labels = []
