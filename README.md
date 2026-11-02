@@ -58,4 +58,13 @@ python evaluate.py --checkpoint checkpoints/resnet18_finetuned.pt --device auto
 python predict.py path/to/image.jpg --checkpoint checkpoints/resnet18_finetuned.pt --device auto
 ```
 
+Train and evaluate a classical classifier using both FFT radial-spectrum and low-frequency DCT features:
+
+```bash
+python train_frequency.py
+python evaluate_frequency.py --checkpoint checkpoints/frequency_features.joblib
+```
+
+The frequency pipeline resizes RGB images to 32×32, summarizes each channel's FFT magnitudes into radial bands, and appends the low-frequency 8×8 DCT coefficients. A standardized logistic-regression model is fit on the training split, with validation accuracy reported and the model plus feature settings saved to the checkpoint. Tune the feature resolution and classifier with `--image-size`, `--fft-bins`, `--dct-size`, and `--regularization`. The test split is only used by `evaluate_frequency.py`.
+
 The baseline uses 32×32 images; ResNet-18 uses 224×224 images with ImageNet normalization. `--device auto` selects CUDA, Apple MPS, or CPU when available. For a valid comparison, keep split seed, epochs, data augmentation, and test data unchanged and report validation/test accuracy, F1, and ROC-AUC for each model.
