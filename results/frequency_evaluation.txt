@@ -1,0 +1,33 @@
+AI Image Forensics — Frequency-Domain Model Evaluation
+Dataset: CIFAKE
+Model: FFT/DCT features + Logistic Regression
+Features: 240 (48 FFT + 192 DCT)
+Training images: 90,000
+Test images: 20,000
+
+Validation accuracy: 0.8149
+
+TEST RESULTS
+Accuracy: 0.8182
+Precision: 0.8221
+Recall: 0.8121
+F1-score: 0.8171
+ROC-AUC: 0.8977
+
+CONFUSION MATRIX (FAKE = positive class)
+True Positives: 8121
+False Negatives: 1879
+False Positives: 1757
+True Negatives: 8243
+
+PCA ANALYSIS
+PC1 explained variance: 14.0613%
+PC2 explained variance: 3.2659%
+Combined explained variance: 17.3272%
+
+PCA fitted on standardized training features.
+Visualization uses 1,000 REAL and 1,000 FAKE test images.
+
+Observation:
+Partial class separation is visible, but substantial overlap
+remains in the first two principal components.
