@@ -8,33 +8,58 @@ from pathlib import Path
 import torch
 from PIL import Image
 from torch.utils.data import Dataset, DataLoader
-from torchvision import transforms
+# from torchvision import transforms
+from src.preprocessing import build_transform
 
 from gradcam import load_model, prepare_image, generate_gradcam, save_visualizations
 from train import choose_device
 
 
+# class TestImages(Dataset):
+#     def __init__(self, items, checkpoint):
+#         self.items = items
+#         size = checkpoint.get("image_size", 224)
+#         if checkpoint.get("imagenet_normalization", True):
+#             mean, std = (.485, .456, .406), (.229, .224, .225)
+#         else:
+#             mean, std = (.5, .5, .5), (.5, .5, .5)
+#         self.transform = transforms.Compose([
+#             transforms.Resize((size, size)),
+#             transforms.ToTensor(),
+#             transforms.Normalize(mean, std),
+#         ])
+
+#     def __len__(self):
+#         return len(self.items)
+
+#     def __getitem__(self, i):
+#         path, actual = self.items[i]
+#         with Image.open(path) as image:
+#             tensor = self.transform(image.convert("RGB"))
+#         return tensor, actual, str(path)
+
+
 class TestImages(Dataset):
     def __init__(self, items, checkpoint):
         self.items = items
-        size = checkpoint.get("image_size", 224)
-        if checkpoint.get("imagenet_normalization", True):
-            mean, std = (.485, .456, .406), (.229, .224, .225)
-        else:
-            mean, std = (.5, .5, .5), (.5, .5, .5)
-        self.transform = transforms.Compose([
-            transforms.Resize((size, size)),
-            transforms.ToTensor(),
-            transforms.Normalize(mean, std),
-        ])
+
+        self.transform = build_transform(
+            image_size=checkpoint.get("image_size", 224),
+            imagenet_normalization=checkpoint.get(
+                "imagenet_normalization", True
+            ),
+            training=False,
+        )
 
     def __len__(self):
         return len(self.items)
 
     def __getitem__(self, i):
         path, actual = self.items[i]
+
         with Image.open(path) as image:
             tensor = self.transform(image.convert("RGB"))
+
         return tensor, actual, str(path)
 
 

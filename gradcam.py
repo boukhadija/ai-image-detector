@@ -8,7 +8,8 @@ import numpy as np
 import torch
 import torch.nn.functional as F
 from PIL import Image
-from torchvision import transforms
+# from torchvision import transforms
+from src.preprocessing import build_transform
 
 from models.detector import create_model
 from train import choose_device
@@ -51,34 +52,52 @@ def load_model(checkpoint_path, device):
 
 
 
+# def prepare_image(image_path, checkpoint):
+#     original = Image.open(image_path).convert("RGB")
+
+#     image_size = checkpoint.get("image_size", 224)
+
+#     if checkpoint.get("imagenet_normalization", True):
+#         normalize = transforms.Normalize(
+#             mean=(0.485, 0.456, 0.406),
+#             std=(0.229, 0.224, 0.225),
+#         )
+#     else:
+#         normalize = transforms.Normalize(
+#             mean=(0.5, 0.5, 0.5),
+#             std=(0.5, 0.5, 0.5),
+#         )
+
+#     transform = transforms.Compose([
+#         transforms.Resize((image_size, image_size)),
+#         transforms.ToTensor(),
+#         normalize,
+#     ])
+
+#     image_tensor = transform(original).unsqueeze(0)
+
+#     return original, image_tensor
+
 def prepare_image(image_path, checkpoint):
+    """load and preprocess an image using checkpoint settings."""
+
     original = Image.open(image_path).convert("RGB")
 
-    image_size = checkpoint.get("image_size", 224)
-
-    if checkpoint.get("imagenet_normalization", True):
-        normalize = transforms.Normalize(
-            mean=(0.485, 0.456, 0.406),
-            std=(0.229, 0.224, 0.225),
-        )
-    else:
-        normalize = transforms.Normalize(
-            mean=(0.5, 0.5, 0.5),
-            std=(0.5, 0.5, 0.5),
-        )
-
-    transform = transforms.Compose([
-        transforms.Resize((image_size, image_size)),
-        transforms.ToTensor(),
-        normalize,
-    ])
+    transform = build_transform(
+        image_size=checkpoint.get("image_size", 224),
+        imagenet_normalization=checkpoint.get(
+            "imagenet_normalization", True
+        ),
+        training=False,
+    )
 
     image_tensor = transform(original).unsqueeze(0)
 
     return original, image_tensor
 
 
-def generate_gradcam(model, image_tensor, device):
+
+def generate_gradcam(model, image_tensor, device, target_class=None):
     activations = {}
     gradients = {}
 
@@ -102,8 +121,21 @@ def generate_gradcam(model, image_tensor, device):
             logits = model(image_tensor)
             probabilities = torch.softmax(logits, dim=1)
 
+            # predicted_index = int(logits.argmax(dim=1).item())
+            # score = logits[0, predicted_index]
+
             predicted_index = int(logits.argmax(dim=1).item())
-            score = logits[0, predicted_index]
+
+            if target_class is None:
+                explained_class = predicted_index
+            else:
+                explained_class = int(target_class)
+            if not 0 <= explained_class < logits.shape[1]:
+                raise ValueError(f"Invalid target class: {explained_class}")
+
+            score = logits[0, explained_class]
+
+
 
             score.backward()
 
