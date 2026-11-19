@@ -1,3 +1,6 @@
+import argparse
+import platform
+import torchvision
 import torch
 from torch import nn
 from torchvision import models
@@ -5,6 +8,35 @@ from torchvision.models import ResNet18_Weights
 from torchvision import datasets, transforms
 from torch.utils.data import DataLoader
 from pathlib import Path
+import random
+import numpy as np
+
+
+parser = argparse.ArgumentParser(
+    description="Train ResNet18 on CIFAKE"
+)
+
+parser.add_argument("--seed", type=int, default=42)
+parser.add_argument("--epochs", type=int, default=5)
+parser.add_argument("--batch-size", type=int, default=128)
+parser.add_argument("--lr", type=float, default=0.0001)
+parser.add_argument("--data-dir", type=str, default="data")
+parser.add_argument(
+    "--checkpoint",
+    type=str,
+    default="checkpoints/resnet18_cifake_repro.pt"
+)
+
+args = parser.parse_args()
+
+SEED = args.seed
+
+random.seed(SEED)
+np.random.seed(SEED)
+torch.manual_seed(SEED)
+
+print(f"Random seed: {SEED}")
+
 
 weights = ResNet18_Weights.DEFAULT
 model = models.resnet18(weights=weights)
@@ -27,17 +59,17 @@ eval_transform = transforms.Compose([
     normalize
 ])
 train_dataset = datasets.ImageFolder(
-    "data/train",
+    Path(args.data_dir) / "train",
     transform=train_transform
 )
 
 val_dataset = datasets.ImageFolder(
-    "data/val",
+    Path(args.data_dir) / "val",
     transform=eval_transform
 )
 
 test_dataset = datasets.ImageFolder(
-    "data/test",
+    Path(args.data_dir) / "test",
     transform=eval_transform
 )
 print(train_dataset.class_to_idx)
@@ -45,21 +77,26 @@ print(len(train_dataset))
 print(len(val_dataset))
 print(len(test_dataset))
 
+
+train_generator = torch.Generator()
+train_generator.manual_seed(SEED)
+
 train_loader = DataLoader(
     train_dataset,
-    batch_size=128,
-    shuffle=True
+    batch_size=args.batch_size,
+    shuffle=True,
+    generator=train_generator
 )
 
 val_loader = DataLoader(
     val_dataset,
-    batch_size=128,
+    batch_size=args.batch_size,
     shuffle=False
 )
 
 test_loader = DataLoader(
     test_dataset,
-    batch_size=128,
+    batch_size=args.batch_size,
     shuffle=False
 )
 device = torch.device("mps" if torch.backends.mps.is_available() else "cpu")
@@ -69,11 +106,34 @@ print("Device:", device)
 criterion = nn.CrossEntropyLoss()
 optimizer = torch.optim.AdamW(
     model.parameters(),
-    lr=0.0001
+    lr=args.lr
 )
-epochs = 5
-checkpoint_path = Path("checkpoints/resnet18_cifake.pt")
+epochs = args.epochs
+
+checkpoint_path = Path(args.checkpoint)
 checkpoint_path.parent.mkdir(parents=True, exist_ok=True)
+
+training_config = {
+    "seed": args.seed,
+    "epochs": args.epochs,
+    "batch_size": args.batch_size,
+    "learning_rate": args.lr,
+    "optimizer": "AdamW",
+    "architecture": "ResNet18",
+    "pretrained_weights": str(weights),
+    "data_dir": args.data_dir,
+    "class_to_idx": train_dataset.class_to_idx,
+    "train_samples": len(train_dataset),
+    "val_samples": len(val_dataset),
+    "test_samples": len(test_dataset),
+    "train_transform": str(train_transform),
+    "eval_transform": str(eval_transform),
+    "device": str(device),
+    "python_version": platform.python_version(),
+    "torch_version": torch.__version__,
+    "torchvision_version": torchvision.__version__,
+}
+
 
 best_val_accuracy = 0.0
 for epoch in range(epochs):
@@ -136,14 +196,15 @@ for epoch in range(epochs):
         best_val_accuracy = val_accuracy
 
         torch.save(
-            {
-                "model_state_dict": model.state_dict(),
-                "class_to_idx": train_dataset.class_to_idx,
-                "epoch": epoch + 1,
-                "val_accuracy": val_accuracy,
-            },
-            checkpoint_path
-        )
+    {
+        "model_state_dict": model.state_dict(),
+        "class_to_idx": train_dataset.class_to_idx,
+        "epoch": epoch + 1,
+        "val_accuracy": val_accuracy,
+        "training_config": training_config,
+    },
+    checkpoint_path
+)
 
         print("Saved new best model.")
 
