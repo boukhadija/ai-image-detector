@@ -77,3 +77,69 @@ Grad-CAM explanations are sensitive to parameter randomization in this experimen
 ### Artifacts
 - results/gradcam_sanity_cumulative_80/sanity_metrics.csv
 - results/figures/gradcam_zero_heatmaps.png
+## November 19, 2026 — Grad-CAM Parameter Randomization
+
+**Session:** Training reproducibility and Grad-CAM diagnostics
+
+## 1. Training reproducibility
+
+- Added configurable training parameters and random seed handling to `train_resnet.py`.
+- Preserved the original trained ResNet18 checkpoint.
+- Verified that the updated training script passes syntax checks.
+- Committed and pushed the changes to GitHub (`389c964`).
+
+**Limitation:** The original model has not been retrained with the updated script. Exact reproducibility across hardware and software versions is not yet established.
+
+## 2. Pre-ReLU Grad-CAM investigation
+
+**Research question:** Why do Grad-CAM heatmaps targeting the REAL class become blank after cumulative model parameter randomization?
+
+**Hypothesis:** The raw Grad-CAM values become non-positive, causing ReLU to clip the entire heatmap to zero.
+
+**Method:**
+- Selected 80 CIFAKE test images: 20 TP, 20 TN, 20 FP, and 20 FN.
+- Evaluated four cumulative ResNet18 randomization stages.
+- Kept the explanation target fixed to the original trained model's predicted class.
+- Captured raw Grad-CAM values before applying ReLU.
+- Completed 320 image-stage comparisons.
+
+**Results:**
+
+| Randomization stage | Blank heatmaps |
+|---|---:|
+| Layer 4 | 1/80 |
+| Layers 3–4 | 36/80 |
+| Layers 2–4 | 40/80 |
+| Layers 1–4 | 40/80 |
+
+All 117 blank heatmaps had strictly negative pre-ReLU maximum values.
+
+For one true-negative example with layers 2–4 randomized:
+- Raw minimum: −0.0019263574
+- Raw maximum: −0.0005139361
+- After ReLU: all values equal zero.
+
+**Conclusion:** ReLU clipping explains all observed blank heatmaps in this experiment.
+
+## 3. Limitations
+
+- The experiment identifies the immediate cause of blank maps, but not why randomization produces negative attributions.
+- The 80-image sample was deliberately balanced across prediction outcomes and is not representative of overall test accuracy.
+- Parameter sensitivity alone does not establish explanation faithfulness.
+- Classification accuracy after randomization has not yet been measured.
+
+## 4. Artifacts
+
+- `gradcam.py`
+- `gradcam_sanity_check.py`
+- `visualize_prerelu.py`
+- `results/gradcam_prerelu_80/sanity_metrics.csv`
+- `results/figures/gradcam_prerelu_diagnostic.png`
+
+**GitHub commit:** `cced71f`
+
+## 5. Next steps
+
+1. Set up Google Colab for cross-generator evaluation using a small balanced GenImage subset.
+2. Measure classification accuracy after each randomization stage.
+3. Continue evaluating Grad-CAM reliability and documenting limitations.
