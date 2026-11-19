@@ -137,11 +137,12 @@ def main():
         )
 
         for stage_name, random_model in randomized_models.items():
-            random_pred, _, random_cam = generate_gradcam(
+            random_pred, _, random_cam, diagnostics = generate_gradcam(
                 random_model,
                 tensor,
                 device,
                 target_class=trained_pred,
+                return_diagnostics=True,
             )
 
             corr = pearson(trained_cam, random_cam)
@@ -172,6 +173,26 @@ def main():
                 random_cam_max=random_cam_max,
                 random_cam_is_zero=random_cam_is_zero,
                 )
+
+            raw_file = ""
+
+            if row["group"] in ("TN", "FN"):
+                raw_file = (
+                    f"raw_{row['group']}_{i:03d}_{stage_name}.npy"
+                )
+
+                np.save(
+                    args.output_dir / raw_file,
+                    diagnostics["raw_cam"],
+                )
+
+            result.update(
+                raw_min=diagnostics["raw_min"],
+                raw_max=diagnostics["raw_max"],
+                raw_mean=diagnostics["raw_mean"],
+                all_non_positive=diagnostics["all_non_positive"],
+                raw_cam_file=raw_file,
+            )
 
             output.append(result)
 
@@ -207,7 +228,7 @@ def main():
     #     print(f'{i}/{len(selected)} {row["group"]} corr={corr:.3f} MAE={mae:.3f} same_class={trained_pred == random_pred}', flush=True)
     fields = list(output[0])
     with (args.output_dir / 'sanity_metrics.csv').open('w', newline='') as f:
-        writer = csv.DictWriter(f, fieldnames=fields)
+        writer = csv.DictWriter(f, fieldnames=fields, lineterminator="\n")
         writer.writeheader()
         writer.writerows(output)
     # valid = [r['heatmap_pearson'] for r in output if np.isfinite(r['heatmap_pearson'])]

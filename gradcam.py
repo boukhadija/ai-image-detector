@@ -1,5 +1,5 @@
 
-"""Generate Grad-CAM explanations for the trained CIFAKE ResNet18."""
+"""Grad-CAM explanations for the trained CIFAKE ResNet18."""
 
 import argparse
 from pathlib import Path
@@ -97,7 +97,7 @@ def prepare_image(image_path, checkpoint):
 
 
 
-def generate_gradcam(model, image_tensor, device, target_class=None):
+def generate_gradcam(model, image_tensor, device,target_class=None, return_diagnostics=False):
     activations = {}
     gradients = {}
 
@@ -143,9 +143,25 @@ def generate_gradcam(model, image_tensor, device, target_class=None):
         feature_gradients = gradients["value"].detach()
 
         weights = feature_gradients.mean(dim=(2, 3), keepdim=True)
+        raw_cam = (weights * feature_maps).sum(
+            dim=1, keepdim=True
+        )
 
-        cam = (weights * feature_maps).sum(dim=1, keepdim=True)
-        cam = F.relu(cam)
+        diagnostics = None
+
+        if return_diagnostics:
+            diagnostics = {
+                "raw_min": raw_cam.min().item(),
+                "raw_max": raw_cam.max().item(),
+                "raw_mean": raw_cam.mean().item(),
+                "all_non_positive": bool(
+                    (raw_cam <= 0).all().item()
+                ),
+                "raw_cam": raw_cam[0, 0].detach().cpu().numpy().copy(),
+            }
+
+        cam = F.relu(raw_cam)
+
 
         cam = F.interpolate(
             cam,
@@ -159,8 +175,16 @@ def generate_gradcam(model, image_tensor, device, target_class=None):
         cam = cam / cam.max().clamp(min=1e-8)
 
         heatmap = cam.cpu().numpy()
+        if return_diagnostics:
+            return (
+                predicted_index,
+                probabilities[0].detach().cpu(),
+                heatmap,
+                diagnostics,
+            )
 
         return predicted_index, probabilities[0].detach().cpu(), heatmap
+
 
     finally:
         handle.remove()
